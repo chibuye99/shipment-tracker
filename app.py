@@ -1,7 +1,11 @@
 from flask import Flask, jsonify
 import os
+import random
+import faker  # new — for generating fake names
 
 app = Flask(__name__)
+
+GREETINGS = ["Hello", "Hi", "Hey", "Greetings"]
 
 @app.route('/')
 def index():
@@ -11,7 +15,13 @@ def index():
 def health():
     return jsonify({"status": "ok"}), 200
 
-#Deployed API endpoints for shipment tracking
+@app.route('/greeting')
+def greeting():
+    fake = faker.Faker()
+    return jsonify({
+        "greeting": random.choice(GREETINGS),
+        "name": fake.first_name()
+    })
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
