@@ -56,24 +56,20 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            set -e
+            set -euo pipefail
 
-            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/shipment-tracker:${{ github.sha }}"
-            SHORT_SHA="${GITHUB_SHA::7}"
+            SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/shipment-tracker:${SHORT_SHA}"
 
             echo "Deploying $IMAGE"
 
-            # Pull the new image
             docker pull "$IMAGE"
 
-            # Capture the currently running image for rollback
             PREVIOUS_IMAGE=$(docker inspect --format='{{.Config.Image}}' shipment-tracker 2>/dev/null || echo "")
 
-            # Stop and remove the old container (if it exists)
             docker stop shipment-tracker 2>/dev/null || true
             docker rm shipment-tracker 2>/dev/null || true
 
-            # Start the new container
             docker run -d \
               --name shipment-tracker \
               --restart unless-stopped \
@@ -82,7 +78,6 @@ jobs:
               -e PORT=5000 \
               "$IMAGE"
 
-            # Wait for health check
             echo "Waiting for health check..."
             for i in {1..15}; do
               if curl -sf http://localhost:5000/health > /dev/null; then
@@ -92,8 +87,11 @@ jobs:
               sleep 2
             done
 
-            # If we get here, health check failed. Roll back.
-            echo "Health check failed. Rolling back..."
+            echo "Health check failed. Container status:"
+            docker ps -a --filter "name=shipment-tracker"
+            echo "Container logs:"
+            docker logs shipment-tracker || true
+            echo "Rolling back..."
             docker stop shipment-tracker || true
             docker rm shipment-tracker || true
 
