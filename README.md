@@ -1,11 +1,47 @@
 # shipment-tracker
 
-A Flask API for Northwind Logistics shipment tracking, containerized with Docker and deployed to AWS EC2.
+Flask API for Northwind Logistics shipment tracking. Containerized, deployed to AWS EC2 via GitHub Actions.
 
-CI/CD is handled by GitHub Actions: every push to `main` builds the image, pushes it to Docker Hub tagged with the commit SHA, SSHes into the server, deploys it, verifies the `/health` endpoint, and rolls back automatically if verification fails.
+**Status:** work in progress. Known gaps documented below.
 
-The app exposes `/`, `/health`, and `/greeting`, listens on port 5000, and reads its configuration from environment variables (`PORT`, `FLASK_ENV`, `GREETING_STYLE`).
+## Architecture
 
-Run it locally with `docker build -t shipment-tracker . && docker run -p 5000:5000 shipment-tracker`.
+Developer → GitHub (main) → GitHub Actions → Docker Hub → EC2 → Docker container.
 
-**Status: work in progress.** Known gaps still being addressed — tests in the pipeline, secret management, external monitoring, and IaC for the server. See the known issues section for the full list.
+Two pipeline jobs:
+- **build:** checkout → build image → tag with short git SHA → push to Docker Hub
+- **deploy:** SSH to EC2 → pull image → stop/rm old container → run new → curl /health → rollback on failure
+
+## Stack
+
+| Layer | Tech |
+|---|---|
+| App | Python 3.11, Flask 3.0 |
+| Container | Docker, `python:3.11-slim` |
+| Registry | Docker Hub (`chibuye/shipment-tracker`) |
+| CI/CD | GitHub Actions |
+| Server | AWS EC2, Ubuntu 22.04, t2.micro |
+| Network | Security group `northwind-prod-sg` |
+
+## Endpoints
+
+| Method | Path | Response |
+|---|---|---|
+| GET | `/` | `{"service":"shipment-tracker","status":"running"}` |
+| GET | `/health` | `{"status":"ok"}` |
+| GET | `/greeting` | `{"greeting":"...","name":"...","style":"..."}` |
+
+## Env Vars
+
+| Var | Default | Purpose |
+|---|---|---|
+| `PORT` | `5000` | App bind port |
+| `FLASK_ENV` | `production` | Flask env |
+| `GREETING_STYLE` | `formal` | `formal`, `casual`, `enthusiastic` |
+
+## Run Locally
+
+```bash
+docker build -t shipment-tracker .
+docker run -p 5000:5000 -e GREETING_STYLE=casual shipment-tracker
+curl http://localhost:5000/health
